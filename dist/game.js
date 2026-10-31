@@ -1,4 +1,4 @@
-import {clamp} from './controls.js?v=grip-16';
+import {clamp} from './controls.js?v=loading-17';
 export const W=1600,H=900,ROUND_SECONDS=60,RELOAD_SECONDS=1.6,SHOT_COOLDOWN=.72,SPREAD=53;
 export class Hunt {
   constructor(random=Math.random){this.random=random;this.viewAspect=1;this.reset();}

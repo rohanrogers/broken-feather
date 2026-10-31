@@ -1,11 +1,15 @@
-import {AimPresence} from './aim-presence.js?v=grip-16';
-import {Hunt,W,H,SPREAD,RELOAD_SECONDS,SHOT_COOLDOWN} from './game.js?v=grip-16';
-import {HandAim,AimCalibration,OneEuro,clamp} from './controls.js?v=grip-16';
-import {HandCamera} from './camera.js?v=grip-16';
-import {ArcadeAudio} from './audio.js?v=grip-16';
+import {ensureTrackingCache} from './tracking-cache.js?v=loading-17';
+import {LoadingScreen} from './loading-screen.js?v=loading-17';
+import {AimPresence} from './aim-presence.js?v=loading-17';
+import {Hunt,W,H,SPREAD,RELOAD_SECONDS,SHOT_COOLDOWN} from './game.js?v=loading-17';
+import {HandAim,AimCalibration,OneEuro,clamp} from './controls.js?v=loading-17';
+import {HandCamera} from './camera.js?v=loading-17';
+import {ArcadeAudio} from './audio.js?v=loading-17';
 const $=id=>document.getElementById(id),canvas=$('gameCanvas'),ctx=canvas.getContext('2d'),video=$('cameraVideo'),handCanvas=$('handCanvas'),hctx=handCanvas.getContext('2d');
 const game=new Hunt(),aimController=new HandAim(),aimPresence=new AimPresence(),audio=new ArcadeAudio();
 const calibration=new AimCalibration();
+void ensureTrackingCache();
+const loadingScreen=new LoadingScreen({onPractice:()=>startPractice()});
 // Explicit local test harness only; absent from the production document.
 const qaTelemetry=document.querySelector('output[data-qa-telemetry]');
 const debugEnabled=!!document.getElementById('debugPanel');
@@ -36,11 +40,11 @@ function setOverlay(content){$('welcomeCard').innerHTML=content;$('overlay').hid
 function hideOverlay(){$('overlay').hidden=true;}
 function resetRound(){game.reset();calibration.reset();aimController.reset();aimPresence.reset();lossSince=null;autoPaused=false;shotAt=hitAt=-Infinity;lastHud='';$('comboBadge').hidden=true;setHidden('trackingWarning',true);$('sceneLabel').textContent='SUNNY MEADOW · ROUND 01';}
 function startCountdown(){phase='countdown';countdownEnd=performance.now()+(mode==='camera'?1000:3000);countNumber=0;hideOverlay();$('pauseButton').disabled=false;$('pauseButton').textContent='Ⅱ';$('pauseButton').setAttribute('aria-label','Pause game');$('statusText').textContent='GET READY · MAKE EVERY SHOT COUNT';}
-function startPractice(){audio.init();camera.stop();mode='practice';resetRound();$('controlTitle').textContent='MOVE TO TAKE AIM';$('controlSubtitle').textContent='CLICK OR TAP TO SHOOT';$('footerHint').textContent='R RELOAD · P PAUSE · C CENTER';setText('trackingHint','MOUSE & TOUCH PRACTICE');$('cameraPlaceholder').hidden=false;$('cameraPlaceholder').querySelector('strong').textContent='PRACTICE MAKES PERFECT';$('cameraPlaceholder').querySelector('span').textContent='Click ↗ below to switch to camera.';setCameraStatus('PRACTICE');startCountdown();}
+function startPractice(){loadingScreen.hide();audio.init();camera.stop();mode='practice';resetRound();$('controlTitle').textContent='MOVE TO TAKE AIM';$('controlSubtitle').textContent='CLICK OR TAP TO SHOOT';$('footerHint').textContent='R RELOAD · P PAUSE · C CENTER';setText('trackingHint','MOUSE & TOUCH PRACTICE');$('cameraPlaceholder').hidden=false;$('cameraPlaceholder').querySelector('strong').textContent='PRACTICE MAKES PERFECT';$('cameraPlaceholder').querySelector('span').textContent='Click ↗ below to switch to camera.';setCameraStatus('PRACTICE');startCountdown();}
 async function startCamera(){
   if(camera.pending)return;audio.init();mode='camera';resetRound();phase='loading';$('pauseButton').disabled=true;$('countdown').hidden=true;
   $('controlTitle').textContent='AIM WITH YOUR HAND';$('controlSubtitle').textContent='SMALL FLICK UP TO SHOOT';$('footerHint').textContent='C / SPACE CENTRE · R RELOAD · P PAUSE';
-  setOverlay('<span class="welcome-tag">YOUR HAND IS THE CONTROLLER</span><h1>Let’s get<br><em>connected.</em></h1><p>Allow camera access when your browser asks.<br>The hand tracker is loading on your device.</p><button class="text-button" data-action="practice">Play with mouse instead →</button><span class="privacy-note">Camera frames stay on your device.</span>');
+  hideOverlay();loadingScreen.show();setText('statusText','PREPARING CAMERA & HAND TRACKING');
   await camera.start(video);
 }
 function showWaiting(){
@@ -58,7 +62,7 @@ function recalibrate(){
   }else{aimController.recenter();aim={x:W/2,y:H/2};}
 }
 
-function cameraError(message){cameraMessage=message;lastHandAt=-Infinity;lastPoints=null;aimController.invalidate();$('cameraPlaceholder').hidden=false;setHidden('trackingWarning',true);$('countdown').hidden=true;phase='idle';setCameraStatus('RETRY','warn');$('pauseButton').disabled=true;setText('trackingHint','CAMERA NEEDS ATTENTION');setOverlay(`<span class="welcome-tag">CAMERA NEEDS ATTENTION</span><h1>Let’s get<br><em>you playing.</em></h1><p id="cameraErrorText"></p><button class="primary-button" data-action="camera">Retry camera ↗</button><button class="text-button" data-action="practice">Play with mouse or touch →</button>`);$('cameraErrorText').textContent=message;$('statusText').textContent='CAMERA OFF · PRACTICE IS AVAILABLE';announce(message);}
+function cameraError(message){loadingScreen.hide();cameraMessage=message;lastHandAt=-Infinity;lastPoints=null;aimController.invalidate();$('cameraPlaceholder').hidden=false;setHidden('trackingWarning',true);$('countdown').hidden=true;phase='idle';setCameraStatus('RETRY','warn');$('pauseButton').disabled=true;setText('trackingHint','CAMERA NEEDS ATTENTION');setOverlay(`<span class="welcome-tag">CAMERA NEEDS ATTENTION</span><h1>Let’s get<br><em>you playing.</em></h1><p id="cameraErrorText"></p><button class="primary-button" data-action="camera">Retry camera ↗</button><button class="text-button" data-action="practice">Play with mouse or touch →</button>`);$('cameraErrorText').textContent=message;$('statusText').textContent='CAMERA OFF · PRACTICE IS AVAILABLE';announce(message);}
 function emitDebugFrame(points,time,now,worldPoints,result,before,predicted=false){
   if(!debugEnabled)return;
   const round=v=>Number.isFinite(v)?Math.round(v*10000)/10000:null;
@@ -76,10 +80,12 @@ function emitDebugFrame(points,time,now,worldPoints,result,before,predicted=fals
   }}));
 }
 const camera=new HandCamera({
+  onProgress(detail){loadingScreen.update(detail);},
   onState(state){if(state==='loading')setCameraStatus('LOADING','warn');else if(state==='on'){
+    loadingScreen.hide();
     handCanvas.width=video.videoWidth||640;handCanvas.height=video.videoHeight||480;$('cameraPlaceholder').hidden=true;setText('trackingHint','MAKE A FINGER GUN');setCameraStatus('FIND HAND','warn');$('cameraToggle').title='Turn camera off';$('cameraToggle').setAttribute('aria-label','Turn camera off');
     if(document.hidden||$('helpDialog').open){phase='paused';resumePhase='waiting';autoPaused=false;}else showWaiting();
-  }else{setText('trackingRate','');lastPoints=null;lastHandAt=-Infinity;aimPresence.reset();aimController.invalidate();hctx.clearRect(0,0,handCanvas.width,handCanvas.height);setCameraStatus('OFFLINE');$('cameraToggle').title='Turn camera on';$('cameraToggle').setAttribute('aria-label','Turn camera on');}},
+  }else{loadingScreen.hide();setText('trackingRate','');lastPoints=null;lastHandAt=-Infinity;aimPresence.reset();aimController.invalidate();hctx.clearRect(0,0,handCanvas.width,handCanvas.height);setCameraStatus('OFFLINE');$('cameraToggle').title='Turn camera on';$('cameraToggle').setAttribute('aria-label','Turn camera on');}},
   onError:cameraError,
   onDiagnostics(detail){if(debugEnabled)document.dispatchEvent(new CustomEvent('chickenshot:diagnostic',{detail:{...detail,arrivedAt:detail.arrivedAt??performance.now()}}));},
   onResult(points,time,now,worldPoints){

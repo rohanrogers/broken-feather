@@ -1,38 +1,42 @@
+import {ensureTrackingCache} from './tracking-cache.js?v=loading-17';
+import {loadTrackingModel} from './tracker-assets.js?v=loading-17';
 // Camera sessions own their worker, stream, and pending frame. Late callbacks
 // cannot revive a cancelled session or mutate a newer one.
 export class HandCamera {
-  constructor({onResult,onState,onError,onDiagnostics}){Object.assign(this,{onResult,onState,onError,onDiagnostics});this.session=0;this.active=false;this.pending=false;this.cancelInit=null;this.video=null;this.worker=null;this.tracker=null;this.stream=null;this.busy=false;this.timer=null;this.raf=null;this.lastTimestamp=-Infinity;this.sampleCount=0;this.resultInterval=66;this.freshnessMs=180;this.lastResultTime=null;this.maxResultAgeMs=650;this.inferenceMs=0;this.frameAgeMs=0;this.slowFrames=0;this.fallbackTried=false;this.recovering=false;}
-  stop(){this.session++;this.recovering=false;this.active=false;this.pending=false;this.cancelInit?.();this.cancelInit=null;clearTimeout(this.timer);this.timer=null;this.worker?.terminate();this.worker=null;this.tracker?.close();this.tracker=null;this.stream?.getTracks().forEach(t=>t.stop());this.stream=null;if(this.video)this.video.srcObject=null;this.busy=false;this.onState('off');}
+  constructor({onResult,onState,onError,onDiagnostics,onProgress}){Object.assign(this,{onResult,onState,onError,onDiagnostics,onProgress});this.session=0;this.active=false;this.pending=false;this.cancelInit=null;this.video=null;this.worker=null;this.tracker=null;this.stream=null;this.busy=false;this.timer=null;this.raf=null;this.lastTimestamp=-Infinity;this.sampleCount=0;this.resultInterval=66;this.freshnessMs=180;this.lastResultTime=null;this.maxResultAgeMs=650;this.inferenceMs=0;this.frameAgeMs=0;this.slowFrames=0;this.fallbackTried=false;this.recovering=false;}
+  stop(){this.session++;clearTimeout(this.startupTimer);this.startupTimer=null;this.initAbort?.abort();this.initAbort=null;this.recovering=false;this.active=false;this.pending=false;this.cancelInit?.();this.cancelInit=null;clearTimeout(this.timer);this.timer=null;this.worker?.terminate();this.worker=null;this.tracker?.close();this.tracker=null;this.stream?.getTracks().forEach(t=>t.stop());this.stream=null;if(this.video)this.video.srcObject=null;this.busy=false;this.onState('off');}
   async start(video){
     if(this.active||this.pending)return;
     if(!navigator.mediaDevices?.getUserMedia||!window.isSecureContext){this.onError('Camera needs localhost or HTTPS. Mouse practice is available.');return;}
-    const session=++this.session;this.pending=true;this.video=video;this.onState('loading');
-    const ready=this.initTracker(session).then(()=>({ok:true}),error=>({error}));
+    const session=++this.session;this.pending=true;this.video=video;this.onState('loading');this.onProgress?.({stage:'permission'});
+    const ready=ensureTrackingCache().then(()=>{if(session===this.session)return this.initTracker(session);}).then(()=>({ok:true}),error=>({error}));
     try{
       const incoming=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:'user',width:{ideal:640},height:{ideal:480},frameRate:{ideal:30,max:30}}});
       if(session!==this.session){incoming.getTracks().forEach(t=>t.stop());return;}
       this.stream=incoming;for(const track of incoming.getVideoTracks())track.onended=()=>{if(session===this.session)this.fail('Camera disconnected. Reconnect it and try again.');};
+      this.onProgress?.({stage:'camera-ready'});this.startupTimer=setTimeout(()=>{if(session===this.session&&this.pending)this.fail('Hand tracking took too long to start. Check your connection and retry, or play with your mouse.');},60000);
       video.srcObject=incoming;await video.play();const result=await ready;if(session!==this.session)return;if(result.error)throw result.error;
-      this.pending=false;this.active=true;this.busy=false;this.fallbackTried=false;this.slowFrames=0;this.recovering=false;this.lastCapture=-Infinity;this.lastVideoTime=-1;this.lastTimestamp=-Infinity;this.sampleCount=0;this.resultInterval=66;this.freshnessMs=180;this.lastResultTime=null;this.interval=this.tracker?66:30;this.onState('on');
+      clearTimeout(this.startupTimer);this.startupTimer=null;this.pending=false;this.active=true;this.busy=false;this.fallbackTried=false;this.slowFrames=0;this.recovering=false;this.lastCapture=-Infinity;this.lastVideoTime=-1;this.lastTimestamp=-Infinity;this.sampleCount=0;this.resultInterval=66;this.freshnessMs=180;this.lastResultTime=null;this.interval=this.tracker?66:30;this.onState('on');
       const pump=()=>{if(session!==this.session||!this.active)return;this.capture(session);if(video.requestVideoFrameCallback)video.requestVideoFrameCallback(pump);else this.raf=setTimeout(pump,33);};pump();
     }catch(error){if(session===this.session){const messages={NotAllowedError:'Camera permission was blocked. Allow camera access and try again.',NotFoundError:'No camera found. Connect a camera, or try mouse practice.',NotReadableError:'The camera is busy. Close other camera apps and try again.'};this.fail(messages[error.name]||error.message||'The hand tracker could not start. Try mouse practice.');}}
   }
   async initTracker(session,delegate='GPU'){
     let candidate;
     try{
-      candidate=new Worker(new URL('./tracker-worker.js?v=grip-16',import.meta.url),{type:'module'});this.worker=candidate;
+      candidate=new Worker(new URL('./tracker-worker.js?v=loading-17',import.meta.url),{type:'module'});this.worker=candidate;
       await new Promise((resolve,reject)=>{
         let finished=false;const done=error=>{if(finished)return;finished=true;clearTimeout(timeout);this.cancelInit=null;error?reject(error):resolve();};
         const timeout=setTimeout(()=>done(Error('Hand tracker loading timed out. Please retry.')),45000);this.cancelInit=()=>done(Error('Cancelled'));
         candidate.onerror=()=>{if(session!==this.session)return;if(!finished)done(Error('Worker unavailable'));else this.fail('Hand tracking stopped. Please retry the camera.');};
-        candidate.onmessage=({data})=>{if(session!==this.session||this.worker!==candidate)return;if(data.type==='ready'){this.delegate=data.delegate;done();}else if(data.type==='error'){if(!finished)done(Error(data.message));else this.fail('Hand tracking stopped. Please retry the camera.');}else if(data.type==='result')this.consume(data,session);};
+        candidate.onmessage=({data})=>{if(session!==this.session||this.worker!==candidate)return;if(data.type==='progress'){this.onProgress?.(data);}else if(data.type==='ready'){this.delegate=data.delegate;done();}else if(data.type==='error'){if(!finished)done(Error(data.message));else this.fail('Hand tracking stopped. Please retry the camera.');}else if(data.type==='result')this.consume(data,session);};
         candidate.postMessage({type:'init',delegate});
       });
     }catch(error){
-      candidate?.terminate();if(session!==this.session)return;this.worker=null;
+      candidate?.terminate();if(session!==this.session)return;this.worker=null;this.onProgress?.({stage:'fallback'});this.initAbort=new AbortController();const signal=this.initAbort.signal;
       const {FilesetResolver,HandLandmarker}=await import('./assets/mediapipe/vision_bundle.mjs');if(session!==this.session)return;
       const files=await FilesetResolver.forVisionTasks(new URL('./assets/mediapipe/wasm',import.meta.url).href,true);if(session!==this.session)return;
-      const tracker=await HandLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:new URL('./assets/hand_landmarker.task',import.meta.url).href,delegate:'CPU'},runningMode:'VIDEO',numHands:1,minHandDetectionConfidence:.5,minHandPresenceConfidence:.5,minTrackingConfidence:.5});
+      const model=await loadTrackingModel(new URL('./assets/hand_landmarker.task',import.meta.url),{signal,onProgress:detail=>{if(session===this.session)this.onProgress?.(detail);}});if(session!==this.session)return;this.onProgress?.({stage:'initializing'});
+      const tracker=await HandLandmarker.createFromOptions(files,{baseOptions:{modelAssetBuffer:model,delegate:'CPU'},runningMode:'VIDEO',numHands:1,minHandDetectionConfidence:.5,minHandPresenceConfidence:.5,minTrackingConfidence:.5});
       if(session!==this.session){tracker.close();return;}this.tracker=tracker;this.delegate='CPU';
     }
   }

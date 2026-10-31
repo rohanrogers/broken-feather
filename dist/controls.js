@@ -1,5 +1,5 @@
-import {fingerSteering,mapSteering} from './steering.js?v=grip-16';
-import {RecoilTrigger} from './recoil.js?v=grip-16';
+import {fingerSteering,mapSteering} from './steering.js?v=loading-17';
+import {RecoilTrigger} from './recoil.js?v=loading-17';
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const alpha=(cutoff,dt)=>1/(1+1/(2*Math.PI*cutoff*dt));
 export class OneEuro {

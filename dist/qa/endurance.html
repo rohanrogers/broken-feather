@@ -9,10 +9,10 @@ document.querySelector('#run').onclick=async()=>{document.querySelector('#run').
 try{
  const source=(await(await fetch('../index.html',{cache:'no-store'})).text()).replaceAll('src="./','src="/').replaceAll('href="./','href="/').replace('</body>','<output data-qa-telemetry hidden></output></body>');
  const frame=document.createElement('iframe');frame.title='Full-round synthetic game';document.querySelector('#frame').replaceChildren(frame);
- frame.srcdoc=source.replace('<head>','<head><base href="/"><script type="importmap">{"imports":{"/camera.js?v=grip-16":"/qa/synthetic-camera.js?v=grip-16"}}<\/script>');await new Promise(r=>frame.onload=r);
+ frame.srcdoc=source.replace('<head>','<head><base href="/"><script type="importmap">{"imports":{"/camera.js?v=loading-17":"/qa/synthetic-camera.js?v=loading-17"}}<\/script>');await new Promise(r=>frame.onload=r);
  const doc=frame.contentDocument,$=id=>doc.getElementById(id),telemetry=()=>JSON.parse(doc.querySelector('output[data-qa-telemetry]').value||'{}');
  doc.getElementById('soundButton').click();out('Sound muted for automated testing.');
- const img=new Image();img.src='./right_hands.jpg';await img.decode();worker=new Worker('../tracker-worker.js?v=grip-16',{type:'module'});
+ const img=new Image();img.src='./right_hands.jpg';await img.decode();worker=new Worker('../tracker-worker.js?v=loading-17',{type:'module'});
  let resolveReply,rejectReply;const reply=()=>new Promise((r,j)=>{resolveReply=r;rejectReply=j;});
  worker.onmessage=({data})=>{if(data.type==='error'){modelError=data.message;rejectReply?.(Error(data.message));}else resolveReply?.(data);};
  const ready=reply();worker.postMessage({type:'init'});const init=await ready;out('Real inference backend: '+init.delegate);

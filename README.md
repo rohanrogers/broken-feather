@@ -14,6 +14,7 @@
 - A quick upward hand flick fires at your aim before the recoil.
 - Brief tracking-gap handling, short centre calibration, and instant recentering.
 - Mouse/touch practice, six shells, automatic reload, scores, combos, and 60-second rounds.
+- Persistent browser caching of the hand model and runtime: refreshes reuse saved tracking assets.
 - Bundled tracking model and runtime; no API key, backend, dependency installation, or build step needed to play locally.
 
 ## Play
@@ -97,6 +98,12 @@ This is a static site. Publish **only `dist/`**; Python is just a local preview 
 Alternatively, upload the **`dist` folder** at [Netlify Drop](https://app.netlify.com/drop). For updates, upload the updated folder to the existing site's Deploys page. See [Netlify deployment documentation](https://docs.netlify.com/deploy/create-deploys/).
 
 Other static HTTPS hosts can also serve `dist` as the site root. Keep the bundled `assets` directory and JavaScript files together. The Python development server is not intended for public production hosting.
+
+## Loading and refreshes
+
+The first camera setup downloads the hand model (about 7.8 MB) and the tracking runtime. The illustrated loading screen distinguishes camera permission, model download progress, and tracker initialization. After a successful load, browser Cache Storage retains the model and a tracking-only service worker caches the runtime, so refreshing reuses those files. The tracker still initializes each visit. Clearing site storage, browser eviction, or an updated tracking asset version can require another download. If storage is unavailable, normal network loading still works.
+
+The cache does not intercept game HTML, game modules, or debug recordings. When replacing bundled tracking assets, bump the cache version in both `dist/tracker-assets.js` and `dist/tracking-cache-worker.js`. `/qa/cache.html` checks real tracker reuse, including after a refresh; `/qa/loading.html` checks the muted startup, cancellation, and error flow.
 
 ## How it works
 

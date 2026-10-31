@@ -1,4 +1,4 @@
-import {createStillness,observeStillness,summarizeStillness} from './stillness.js?v=grip-16';
+import {createStillness,observeStillness,summarizeStillness} from './stillness.js?v=loading-17';
 export const SHOT_ATTEMPTS=10;
 const spiralPath=()=>Array.from({length:217},(_,i)=>{const t=i/216,r=42*t,a=-Math.PI/2+6*Math.PI*t;return `${i?'L':'M'}${(50+r*Math.cos(a)).toFixed(2)} ${(50+r*Math.sin(a)).toFixed(2)}`;}).join(' ')+' L50 50';
 export const AIM_STAGES=[

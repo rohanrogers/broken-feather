@@ -8,3 +8,16 @@ test('camera stop closes owned resources and disallows late results',()=>{let st
 test('slower bounded inference still delivers landmarks instead of silently freezing control',()=>{let results=0;const c=new HandCamera({onState(){},onError(){},onResult(){results++;}});const now=performance.now();c.consume({points:[],timestamp:now-400,inferenceMs:390},0);assert.equal(results,1);assert.ok(c.frameAgeMs>=400);assert.equal(c.inferenceMs,390);c.consume({points:[],timestamp:now-2000,inferenceMs:1900},0);assert.equal(results,1);});
 test('sustained slow GPU results request backend recovery once',()=>{const c=new HandCamera({onState(){},onError(){},onResult(){}});c.active=true;c.delegate='GPU';let recoveries=0;c.recoverSlowTracker=async()=>{if(c.fallbackTried)return;c.fallbackTried=true;recoveries++;};const now=performance.now();for(let i=0;i<6;i++)c.consume({timestamp:now-500+i*10,inferenceMs:400},0);assert.equal(recoveries,1);});
 test('backend recovery preserves the stream and selects CPU without a new camera session',async()=>{const c=new HandCamera({onState(){},onError(){},onResult(){}});c.active=true;c.delegate='GPU';let terminated=0,requested;const stream={};c.stream=stream;c.worker={terminate(){terminated++;}};c.initTracker=async(session,delegate)=>{requested=delegate;c.delegate=delegate;};await c.recoverSlowTracker(0);assert.equal(terminated,1);assert.equal(requested,'CPU');assert.equal(c.stream,stream);assert.equal(c.active,true);assert.equal(c.recovering,false);await c.recoverSlowTracker(0);assert.equal(terminated,1);});
+
+test('worker progress is forwarded only for its current camera session',async t=>{
+ const previous=Object.getOwnPropertyDescriptor(globalThis,'Worker');let worker;const progress=[];
+ Object.defineProperty(globalThis,'Worker',{configurable:true,value:class{constructor(){worker=this;}postMessage(){queueMicrotask(()=>{this.onmessage({data:{type:'progress',stage:'initializing'}});this.onmessage({data:{type:'ready',delegate:'GPU'}});});}terminate(){}}});
+ t.after(()=>{if(previous)Object.defineProperty(globalThis,'Worker',previous);else delete globalThis.Worker;});
+ const c=new HandCamera({onState(){},onError(){},onResult(){},onProgress:p=>progress.push(p)});await c.initTracker(0);assert.equal(progress[0].stage,'initializing');c.stop();worker.onmessage({data:{type:'progress',stage:'download'}});assert.equal(progress.length,1);
+});
+test('cancelling worker startup resolves without initializing a replacement tracker',async t=>{
+ const previous=Object.getOwnPropertyDescriptor(globalThis,'Worker');let stopped=0;
+ Object.defineProperty(globalThis,'Worker',{configurable:true,value:class{postMessage(){}terminate(){stopped++;}}});
+ t.after(()=>{if(previous)Object.defineProperty(globalThis,'Worker',previous);else delete globalThis.Worker;});
+ const c=new HandCamera({onState(){},onError(){},onResult(){}}),pending=c.initTracker(0);c.stop();await pending;assert.equal(c.worker,null);assert.equal(c.tracker,null);assert.ok(stopped>=1);
+});

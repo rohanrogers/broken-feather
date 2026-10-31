@@ -1,5 +1,5 @@
 import {GuidedRecorder,AIM_STAGES,SHOT_ATTEMPTS} from './recorder.js?v=spiral-14';
-import {sessionStore} from './storage.js?v=grip-16';
+import {sessionStore} from './storage.js?v=loading-17';
 const $=id=>document.getElementById(id),recorder=new GuidedRecorder({timeOriginEpochMs:performance.timeOrigin}),store=sessionStore(document.documentElement.dataset.debugTest==='true');
 const modeInfo={shooting:{label:'Shot',count:'debugShotCount',export:'debugShotExport',file:'chickenshot-shooting-10-attempts.json'},'aim-only':{label:'Aim-only',count:'debugAimCount',export:'debugAimExport',file:'chickenshot-aim-only-paths.json'},stillness:{label:'Hold-still',count:'debugStillCount',export:'debugStillExport',file:'chickenshot-hold-still.json'}};
 let lastFrame=null,selected='shooting',lastCue='',lastPartKey='',trace=[];
