@@ -1,0 +1,42 @@
+# Credentials and local configuration
+/.github-token.local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Private landmark recordings and local analysis/debug exports
+/chickenshot-*.json
+/output/
+/tests/private/
+
+# Dependencies, logs, and caches
+node_modules/
+.npm/
+*.log
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+coverage/
+.nyc_output/
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# Local hosting metadata
+.netlify/
+
+# dist/ is intentionally tracked: it is the deployable game.

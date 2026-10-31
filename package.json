@@ -1,0 +1,12 @@
+{
+  "name": "broken-feather",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 server.py",
+    "test": "node --test tests/*.test.js",
+    "test:private": "node --test tests/private/*.test.js"
+  },
+  "description": "A webcam-controlled chicken shooting arcade game with on-device hand tracking."
+}

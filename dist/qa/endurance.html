@@ -1,0 +1,47 @@
+<!doctype html><meta charset="utf-8"><title>Chicken Shot full-round endurance test</title>
+<style>body{font:14px system-ui;background:#173328;color:#fff3d6;padding:20px}button{padding:12px 20px;background:#ffc35d;border:0;border-radius:6px}pre{white-space:pre-wrap;line-height:1.6}iframe{width:1100px;max-width:100%;height:650px;border:1px solid #aaa}</style>
+<h1>Full-round endurance test</h1><p>60 seconds of real game time, synthetic aiming/shooting, plus a real MediaPipe worker processing a public image. No webcam access.</p><button id="run">Run full-round test</button><pre id="log">Ready.</pre><div id="frame"></div>
+<script type="module">
+const log=document.querySelector('#log'),delay=ms=>new Promise(r=>setTimeout(r,ms));
+const out=t=>log.textContent+='\n'+t;
+async function until(check,label,timeout=15000){const start=performance.now();while(performance.now()-start<timeout){if(check())return;await delay(50);}throw Error(label);}
+document.querySelector('#run').onclick=async()=>{document.querySelector('#run').disabled=true;log.textContent='Starting full-round test…';let worker,stopInference=false,modelError=null,inferences=[],buckets=[],renderTimes=[],previousFrame=0,rendering=true;
+try{
+ const source=(await(await fetch('../index.html',{cache:'no-store'})).text()).replaceAll('src="./','src="/').replaceAll('href="./','href="/').replace('</body>','<output data-qa-telemetry hidden></output></body>');
+ const frame=document.createElement('iframe');frame.title='Full-round synthetic game';document.querySelector('#frame').replaceChildren(frame);
+ frame.srcdoc=source.replace('<head>','<head><base href="/"><script type="importmap">{"imports":{"/camera.js?v=grip-16":"/qa/synthetic-camera.js?v=grip-16"}}<\/script>');await new Promise(r=>frame.onload=r);
+ const doc=frame.contentDocument,$=id=>doc.getElementById(id),telemetry=()=>JSON.parse(doc.querySelector('output[data-qa-telemetry]').value||'{}');
+ doc.getElementById('soundButton').click();out('Sound muted for automated testing.');
+ const img=new Image();img.src='./right_hands.jpg';await img.decode();worker=new Worker('../tracker-worker.js?v=grip-16',{type:'module'});
+ let resolveReply,rejectReply;const reply=()=>new Promise((r,j)=>{resolveReply=r;rejectReply=j;});
+ worker.onmessage=({data})=>{if(data.type==='error'){modelError=data.message;rejectReply?.(Error(data.message));}else resolveReply?.(data);};
+ const ready=reply();worker.postMessage({type:'init'});const init=await ready;out('Real inference backend: '+init.delegate);
+ async function infer(){const bitmap=await createImageBitmap(img),pending=reply();worker.postMessage({type:'frame',bitmap,timestamp:performance.now()},[bitmap]);const result=await pending;inferences.push({at:performance.now(),ms:result.inferenceMs});}
+ await infer();
+ async function pump(){try{while(!stopInference){await infer();await delay(30);}}catch(e){modelError=e.message;}}
+ const inferenceTask=pump();
+ $('startCamera').click();await until(()=>telemetry().phase==='running','round did not start');
+ const aimReferences=new Map();
+ const start=performance.now();let cycle=0,lastBucket=0,recovered=false;const errors=[];
+ const render=now=>{if(previousFrame)renderTimes.push(now-previousFrame);previousFrame=now;if(rendering)frame.contentWindow.requestAnimationFrame(render);};frame.contentWindow.requestAnimationFrame(render);
+ while(telemetry().phase!=='finished'){
+  const elapsed=performance.now()-start;if(elapsed>85000)throw Error('round stalled or paused');
+  if(telemetry().phase!=='running'){errors.push('unexpected '+telemetry().phase+' at '+Math.round(elapsed/1000)+'s');break;}
+  if(new URLSearchParams(location.search).has('degrade')&&elapsed>40000&&!recovered){out('Injecting 400 ms tracking delay after 40 seconds; backend initialization is mocked in the synthetic adapter.');frame.contentWindow.postMessage({type:'test-degrade'},location.origin);await until(()=>telemetry().delegate==='CPU','slow backend did not recover',8000);recovered=true;out('PASS · slow GPU path recovered to CPU automatically');await delay(700);}
+  const yaw=cycle%2?-.32:.32;frame.contentWindow.postMessage({type:'test-aim',yaw,pitch:0},location.origin);await delay(650);
+  const before=telemetry();if(yaw>0&&before.aimX<.7||yaw<0&&before.aimX>.3)errors.push('finger turn did not reach its screen side');
+  if(!aimReferences.has(yaw))aimReferences.set(yaw,before.aimX);const targetX=aimReferences.get(yaw),aimError=Math.abs(before.aimX-targetX);
+  if(aimError>.06)errors.push('aim error '+aimError.toFixed(3)+' at '+(elapsed/1000).toFixed(1)+'s');
+  await until(()=>telemetry().armed&&$('cameraStatus').textContent.includes('READY')||telemetry().phase==='finished','trigger stuck',5000);if(telemetry().phase==='finished')break;
+  const shots=telemetry().shots;frame.contentWindow.postMessage({type:'test-flick'},location.origin);
+  await until(()=>telemetry().shots===shots+1||telemetry().phase==='finished','shot did not register',2000);if(telemetry().phase==='finished')break;
+  cycle++;await delay(500);if(telemetry().shots!==shots+1)errors.push('extra shot at '+(elapsed/1000).toFixed(1)+'s');
+  if(Math.floor(elapsed/10000)>lastBucket){lastBucket=Math.floor(elapsed/10000);const t=telemetry();buckets.push({second:Math.round(elapsed/1000),shots:t.shots,aimError:+aimError.toFixed(3),samples:t.samples,history:t.history});out(JSON.stringify(buckets.at(-1)));}
+ }
+ stopInference=true;await inferenceTask;rendering=false;worker.terminate();
+ const end=performance.now(),summary={wallSeconds:+((end-start)/1000).toFixed(1),shots:telemetry().shots,modelSamples:inferences.length,modelError,recoveredSlowBackend:recovered,renderFPS:+(1000/(renderTimes.reduce((a,b)=>a+b,0)/renderTimes.length)).toFixed(1),inferenceFirst20Ms:0,inferenceLast20Ms:0,slowResultsOver350:inferences.filter(v=>v.ms>350).length,errors};
+ const average=list=>list.reduce((s,v)=>s+v.ms,0)/Math.max(1,list.length);summary.inferenceFirst20Ms=+average(inferences.filter(v=>v.at<start+20000)).toFixed(1);summary.inferenceLast20Ms=+average(inferences.filter(v=>v.at>end-20000)).toFixed(1);
+ out(JSON.stringify(summary,null,2));out(errors.length||modelError?'FAIL · endurance check':'PASS · full round including final 20 seconds');
+}catch(e){out('FAIL · '+e.message);stopInference=true;worker?.terminate();rendering=false;}finally{document.querySelector('#run').disabled=false;}
+};
+</script>

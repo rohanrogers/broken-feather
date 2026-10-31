@@ -1,0 +1,16 @@
+# Generated artwork
+
+Generated using the built-in image generator, then copied into this project. Original outputs remain in the generation library.
+
+- `dist/assets/meadow.png`: original 2D countryside background.
+- `dist/assets/chicken.png`: original transparent cartoon chicken sprite.
+- `dist/assets/icon.svg`: code-authored chicken favicon.
+- `dist/assets/shotgun.png`: generated transparent illustrated shotgun for side views; front view drawn in Canvas. Both align to hand landmarks.
+
+## Generation prompts
+
+Background: "Use case: illustration-story. Asset type: background artwork for a 2D arcade chicken shooting game. Create a gorgeous wide 16:9 landscape with a very large open clear blue sky filling top 70 percent of composition, delicate scattered white clouds near edges leaving center open for gameplay. Bottom 30 percent lush pastoral countryside, rolling forested hills, a small red barn on lower left, a windmill far right, a curved dirt track, distant lake, wooden fence and sunlit meadow grass along bottom. A leafy tree canopy frames upper left corner only. Stylized hand-painted premium indie game environment, cheerful warm afternoon, softly textured brushwork, detailed but readable, coherent charming cartoon illustration, saturated sky blue, leafy greens, warm cream sunlit highlights. All scenery stays below bottom third except tree canopy small upper left and clouds. No text, no letters, no numbers, no UI, no crosshair, no guns, no chickens, no birds, no people, no frame. This will be the actual game environment, keep sky open."
+
+Chicken (transparent background): "Use case: stylized-concept. Asset type: transparent game sprite. A single charming expressive cartoon flying chicken, side view facing right, white cream plumage, warm tan wing feathers, red comb and wattle, golden orange beak and feet, wide goofy determined eyes. Both wings raised mid-flap, tail streaming left, feet tucked below. Cute compact round silhouette, readable at small size. Polished 2D hand-painted indie arcade game illustration with crisp clean outline and soft cel-shaded depth, slightly vintage illustrated game aesthetic. Whole chicken entirely in frame centered with generous even transparent margin, no other objects, no text, no shadow on ground, no scene. Transparent background, isolated chicken cutout only."
+
+Shotgun (transparent background): "Use case: stylized-concept. Asset type: transparent 2D game prop sprite, to overlay on a webcam hand. One compact charming cartoon double-barrel hunting shotgun, exact flat side profile, barrel pointing RIGHT, stock on LEFT. Upright orientation: twin parallel dark teal steel barrels on TOP, small gold front sight above, warm walnut wooden pump fore-end under front of barrels, curved trigger guard and pistol grip BELOW receiver, short rounded walnut shoulder stock extending back left. Polished hand-painted premium 2D arcade illustration, warm highlights, clean dark outlines, readable believable proportions rather than simple rectangles, small tasteful brass details. Whole gun centered, occupies 85 percent width with even transparent margins, wide horizontal shape about 3.5 to 1. No hand, no person, no ammunition, no muzzle flash, no text, no environment, no shadow on ground. Transparent background only."
